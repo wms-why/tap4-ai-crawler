@@ -1,9 +1,9 @@
 import os
 from dotenv import load_dotenv
-from groq import Groq
 import logging
 from transformers import LlamaTokenizer
 from util.common_util import CommonUtil
+import replicate
 
 # 设置日志记录
 logging.basicConfig(
@@ -18,16 +18,11 @@ tokenizer = LlamaTokenizer.from_pretrained("huggyllama/llama-65b")
 class LLMUtil:
     def __init__(self):
         load_dotenv()
-        self.groq_api_key = os.getenv('GROQ_API_KEY')
-        logger.info(f"Groq API Key:{self.groq_api_key}")
         self.detail_sys_prompt = os.getenv('DETAIL_SYS_PROMPT')
         self.tag_selector_sys_prompt = os.getenv('TAG_SELECTOR_SYS_PROMPT')
         self.language_sys_prompt = os.getenv('LANGUAGE_SYS_PROMPT')
-        self.groq_model = os.getenv('GROQ_MODEL')
-        self.groq_max_tokens = int(os.getenv('GROQ_MAX_TOKENS', 5000))
-        self.client = Groq(
-            api_key=self.groq_api_key
-        )
+        self.replicate_model = os.getenv('REPLICATE_MODEL')
+        self.replicate_max_tokens = int(os.getenv('REPLICATE_MAX_TOKENS', 8000))
 
     def process_detail(self, user_prompt):
         logger.info("正在处理Detail...")
@@ -68,31 +63,31 @@ class LLMUtil:
         logger.info("LLM正在处理")
         try:
             tokens = tokenizer.encode(user_prompt)
-            if len(tokens) > self.groq_max_tokens:
-                logger.info(f"用户输入长度超过{self.groq_max_tokens}，进行截取")
-                truncated_tokens = tokens[:self.groq_max_tokens]
+            if len(tokens) > self.replicate_max_tokens:
+                logger.info(f"用户输入长度超过{self.replicate_max_tokens}，进行截取")
+                truncated_tokens = tokens[:self.replicate_max_tokens]
                 user_prompt = tokenizer.decode(truncated_tokens)
-
-            chat_completion = self.client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": sys_prompt,
-                    },
-                    {
-                        "role": "user",
-                        "content": user_prompt,
-                    }
-                ],
-                model=self.groq_model,
-                temperature=0.2,
-            )
-            if chat_completion.choices[0] and chat_completion.choices[0].message:
-                logger.info(f"LLM完成处理，成功响应!")
-                return chat_completion.choices[0].message.content
-            else:
-                logger.info("LLM完成处理，处理结果为空")
-                return None
+            r = []
+            for event in replicate.stream(
+                "meta/meta-llama-3-8b-instruct",
+                input={
+                    "top_k": 0,
+                    "top_p": 0.95,
+                    "prompt": user_prompt,
+                    "max_tokens": 512,
+                    "temperature": 0.7,
+                    "system_prompt": sys_prompt,
+                    "length_penalty": 1,
+                    "max_new_tokens": 512,
+                    "stop_sequences": "<|end_of_text|>,<|eot_id|>",
+                    "prompt_template": "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n",
+                    "presence_penalty": 0,
+                    "log_performance_metrics": False
+                },
+            ):
+                r.append(str(event))
+            
+            return "".join(r)
         except Exception as e:
             logger.error(f"LLM处理失败", e)
             return None
