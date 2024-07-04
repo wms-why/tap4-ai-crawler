@@ -1,7 +1,6 @@
 import os
-from dotenv import load_dotenv
 import logging
-from transformers import LlamaTokenizer
+from transformers import AutoTokenizer
 from util.common_util import CommonUtil
 import replicate
 
@@ -13,11 +12,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 util = CommonUtil()
 # 初始化LLaMA模型的Tokenizer
-tokenizer = LlamaTokenizer.from_pretrained("huggyllama/llama-65b")
+tokenizer = AutoTokenizer.from_pretrained("NousResearch/Meta-Llama-3-8B-Instruct")
 
 class LLMUtil:
     def __init__(self):
-        load_dotenv()
         self.detail_sys_prompt = os.getenv('DETAIL_SYS_PROMPT')
         self.tag_selector_sys_prompt = os.getenv('TAG_SELECTOR_SYS_PROMPT')
         self.language_sys_prompt = os.getenv('LANGUAGE_SYS_PROMPT')

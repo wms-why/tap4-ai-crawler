@@ -1,6 +1,4 @@
-from pyexpat import model
 from dotenv import load_dotenv
-from regex import F
 import replicate
 load_dotenv()
 
@@ -20,7 +18,7 @@ for event in replicate.run(
             "presence_penalty": 0,
             "log_performance_metrics": False
         },
-        stream=False
+        stream=True
     ):
     print("----", end="\n")
     print(str(event), end="")

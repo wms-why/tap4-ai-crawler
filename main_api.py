@@ -4,14 +4,15 @@ import os
 import threading
 import requests
 from dotenv import load_dotenv
+
 from flask import Flask, request, jsonify
 from website_crawler import WebsitCrawler
 
-app = Flask(__name__)
-website_crawler = WebsitCrawler()
 load_dotenv()
-auth_secret = 'Bearer ' + os.getenv('AUTH_SECRET')
 
+app = Flask(__name__)
+auth_secret = 'Bearer ' + os.getenv('AUTH_SECRET')
+website_crawler = WebsitCrawler()
 # 设置日志记录
 logging.basicConfig(
     level=logging.INFO,

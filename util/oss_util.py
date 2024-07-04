@@ -1,6 +1,5 @@
 import os
 import time
-from dotenv import load_dotenv
 import logging
 from io import BytesIO
 import requests
@@ -22,18 +21,18 @@ logger = logging.getLogger(__name__)
 
 class OSSUtil:
     def __init__(self):
-        load_dotenv()
-        self.S3_ENDPOINT_URL = os.getenv('S3_ENDPOINT_URL')
-        self.S3_ACCESS_KEY_ID = os.getenv('S3_ACCESS_KEY_ID')
-        self.S3_SECRET_ACCESS_KEY = os.getenv('S3_SECRET_ACCESS_KEY')
-        self.S3_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
-        self.S3_CUSTOM_DOMAIN = os.getenv('S3_CUSTOM_DOMAIN')
-        self.s3 = boto3.client(
+
+        self.R2_ENDPOINT_URL = os.getenv('R2_ENDPOINT_URL')
+        self.R2_ACCESS_KEY_ID = os.getenv('R2_ACCESS_KEY_ID')
+        self.R2_SECRET_ACCESS_KEY = os.getenv('R2_SECRET_ACCESS_KEY')
+        self.R2_BUCKET_NAME = os.getenv('R2_BUCKET_NAME')
+        self.R2_CUSTOM_DOMAIN = os.getenv('R2_CUSTOM_DOMAIN')
+        self.r2 = boto3.client(
             's3',
-            endpoint_url=self.S3_ENDPOINT_URL,
-            aws_access_key_id=self.S3_ACCESS_KEY_ID,
-            aws_secret_access_key=self.S3_SECRET_ACCESS_KEY,
-            config=Config(signature_version='s3v4')  # 使用S3兼容签名版本
+            endpoint_url=self.R2_ENDPOINT_URL,
+            aws_access_key_id=self.R2_ACCESS_KEY_ID,
+            aws_secret_access_key=self.R2_SECRET_ACCESS_KEY,
+            config=Config(signature_version='s3v4')  # 使用R2兼容签名版本
         )
 
     def get_default_file_key(self, url, is_thumbnail=False):
@@ -66,19 +65,19 @@ class OSSUtil:
                     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
                 })
                 image_data = response.content
-                self.s3.upload_fileobj(BytesIO(image_data), self.S3_BUCKET_NAME, file_key)
+                self.r2.upload_fileobj(BytesIO(image_data), self.R2_BUCKET_NAME, file_key)
             else:
-                self.s3.upload_file(file_path, self.S3_BUCKET_NAME, file_key)
+                self.r2.upload_file(file_path, self.R2_BUCKET_NAME, file_key)
 
-            logger.info(f"文件 '{file_path}' 成功上传到 '{self.S3_BUCKET_NAME}/{file_key}'")
+            logger.info(f"文件 '{file_path}' 成功上传到 '{self.R2_BUCKET_NAME}/{file_key}'")
             if os.path.exists(file_path):
                 os.remove(file_path)
 
             # 如果提供了自定义域名
-            if self.S3_CUSTOM_DOMAIN:
-                file_url = f"https://{self.S3_CUSTOM_DOMAIN}/{file_key}"
+            if self.R2_CUSTOM_DOMAIN:
+                file_url = f"https://{self.R2_CUSTOM_DOMAIN}/{file_key}"
             else:
-                file_url = f"{self.S3_ENDPOINT_URL}/{self.S3_BUCKET_NAME}/{file_key}"
+                file_url = f"{self.R2_ENDPOINT_URL}/{self.R2_BUCKET_NAME}/{file_key}"
 
             logger.info(f"文件URL: {file_url}")
             return file_url
@@ -88,7 +87,7 @@ class OSSUtil:
 
     def generate_thumbnail_image(self, url, image_key):
         # 下载图像文件
-        response = self.s3.get_object(Bucket=self.S3_BUCKET_NAME, Key=image_key)
+        response = self.r2.get_object(Bucket=self.R2_BUCKET_NAME, Key=image_key)
         image_data = response['Body'].read()
 
         # 使用Pillow库打开图像
@@ -105,14 +104,14 @@ class OSSUtil:
         resized_image.save(thumbnail_buffer, format='PNG')
         thumbnail_buffer.seek(0)
 
-        # 将缩略图上传回S3
+        # 将缩略图上传回R2
         thumbnail_key = self.get_default_file_key(url, is_thumbnail=True)
-        self.s3.put_object(Bucket=self.S3_BUCKET_NAME, Key=thumbnail_key, Body=thumbnail_buffer)
+        self.r2.put_object(Bucket=self.R2_BUCKET_NAME, Key=thumbnail_key, Body=thumbnail_buffer)
 
         # 如果提供了自定义域名
-        if self.S3_CUSTOM_DOMAIN:
-            file_url = f"https://{self.S3_CUSTOM_DOMAIN}/{thumbnail_key}"
+        if self.R2_CUSTOM_DOMAIN:
+            file_url = f"https://{self.R2_CUSTOM_DOMAIN}/{thumbnail_key}"
         else:
-            file_url = f"{self.S3_ENDPOINT_URL}/{self.S3_BUCKET_NAME}/{thumbnail_key}"
+            file_url = f"{self.R2_ENDPOINT_URL}/{self.R2_BUCKET_NAME}/{thumbnail_key}"
         logger.info(f"缩略图文件URL: {file_url}")
         return file_url

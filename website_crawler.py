@@ -1,3 +1,4 @@
+import os
 from bs4 import BeautifulSoup
 import logging
 import time
@@ -8,8 +9,7 @@ from util.common_util import CommonUtil
 from util.llm_util import LLMUtil
 from util.oss_util import OSSUtil
 
-llm = LLMUtil()
-oss = OSSUtil()
+
 
 # 设置日志记录
 logging.basicConfig(
@@ -36,6 +36,8 @@ global_agent_headers = [
 class WebsitCrawler:
     def __init__(self):
         self.browser = None
+        self.llm = LLMUtil()
+        self.oss = OSSUtil()
 
     # 爬取指定URL网页内容
     async def scrape_website(self, url, tags, languages):
@@ -51,8 +53,9 @@ class WebsitCrawler:
                 self.browser = await launch(headless=True,
                                             ignoreDefaultArgs=["--enable-automation"],
                                             ignoreHTTPSErrors=True,
-                                            args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu',
-                                                  '--disable-software-rasterizer', '--disable-setuid-sandbox'],
+                                            args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', 
+                                                  '--disable-software-rasterizer', '--disable-setuid-sandbox',
+                                                  ],
                                             handleSIGINT=False, handleSIGTERM=False, handleSIGHUP=False)
 
             page = await self.browser.newPage()
@@ -64,7 +67,7 @@ class WebsitCrawler:
             height = 1080  # 默认高度为 1080
             await page.setViewport({'width': width, 'height': height})
             try:
-                await page.goto(url, {'timeout': 60000, 'waitUntil': ['load', 'networkidle2']})
+                await page.goto(url, {'timeout': 10000, 'waitUntil': ['load', 'networkidle2']})
             except Exception as e:
                 logger.info(f'页面加载超时,不影响继续执行后续流程:{e}')
 
@@ -91,7 +94,7 @@ class WebsitCrawler:
             logger.info(f"url:{url}, title:{title},description:{description}")
 
             # 生成网站截图
-            image_key = oss.get_default_file_key(url)
+            image_key = self.oss.get_default_file_key(url)
             dimensions = await page.evaluate(f'''(width, height) => {{
                 return {{
                     width: {width},
@@ -109,31 +112,31 @@ class WebsitCrawler:
                 'height': dimensions['height']
             }})
             # 上传图片，返回图片地址
-            screenshot_key = oss.upload_file_to_r2(screenshot_path, image_key)
+            screenshot_key = self.oss.upload_file_to_r2(screenshot_path, image_key)
 
             # 生成缩略图
-            thumnbail_key = oss.generate_thumbnail_image(url, image_key)
+            thumnbail_key = self.oss.generate_thumbnail_image(url, image_key)
 
             # 抓取整个网页内容
             content = soup.get_text()
 
             # 使用llm工具处理content
-            detail = llm.process_detail(content)
+            detail = self.llm.process_detail(content)
             await page.close()
 
             # 如果tags为非空数组，则使用llm工具处理tags
             processed_tags = None
             if tags and detail:
-                processed_tags = llm.process_tags('tag_list is:' + ','.join(tags) + '. content is: ' + detail)
+                processed_tags = self.llm.process_tags('tag_list is:' + ','.join(tags) + '. content is: ' + detail)
 
             # 循环languages数组， 使用llm工具生成各种语言
             processed_languages = []
             if languages:
                 for language in languages:
                     logger.info("正在处理" + url + "站点，生成" + language + "语言")
-                    processed_title = llm.process_language(language, title)
-                    processed_description = llm.process_language(language, description)
-                    processed_detail = llm.process_language(language, detail)
+                    processed_title = self.llm.process_language(language, title)
+                    processed_description = self.llm.process_language(language, description)
+                    processed_detail = self.llm.process_language(language, detail)
                     processed_languages.append({'language': language, 'title': processed_title,
                                                 'description': processed_description, 'detail': processed_detail})
 
