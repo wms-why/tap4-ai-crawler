@@ -67,7 +67,7 @@ class WebsitCrawler:
             height = 1080  # 默认高度为 1080
             await page.setViewport({'width': width, 'height': height})
             try:
-                await page.goto(url, {'timeout': 10000, 'waitUntil': ['load', 'networkidle2']})
+                await page.goto(url, {'timeout': 30000, 'waitUntil': ['load', 'networkidle2']})
             except Exception as e:
                 logger.info(f'页面加载超时,不影响继续执行后续流程:{e}')
 
